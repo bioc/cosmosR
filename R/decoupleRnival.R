@@ -214,7 +214,7 @@ reduce_solution_network <- function(decoupleRnival_res, meta_network, cutoff, up
   upstream_nodes <- upstream_input_df[!(upstream_input_df$filterout), "nodes"]
   upstream_nodes <- upstream_nodes[upstream_nodes %in% res_network$source | upstream_nodes %in% res_network$target]
   
-  res_network <- cosmosR:::keep_controllable_neighbours(res_network, n_steps, upstream_nodes)
+  res_network <- keep_controllable_neighbours(res_network, n_steps, upstream_nodes)
   
   SIF <- res_network
   ATT <- recursive_decoupleRnival_res[recursive_decoupleRnival_res$nodes %in% SIF$source | recursive_decoupleRnival_res$nodes %in% SIF$target,]
@@ -263,7 +263,7 @@ meta_network_cleanup <- function(meta_network)
     meta_network <- meta_network[-which(meta_network$source == meta_network$target),]
   }  
   meta_network <- unique(meta_network)
-  meta_network <- meta_network %>% group_by(source,target) %>% summarise_each(funs(mean(., na.rm = TRUE)))
+  meta_network <- meta_network %>% group_by(source,target) %>% summarise(across(everything(), ~mean(.x, na.rm = TRUE)))
   meta_network <- as.data.frame(meta_network)
   meta_network <- meta_network[meta_network$interaction %in% c(1,-1),]
   return(meta_network)
