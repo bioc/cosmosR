@@ -46,6 +46,8 @@ jobs:
     runs-on: ${{ matrix.config.os }}
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
     container: ${{ matrix.config.cont }}
+    outputs:
+      coverage-artifact-id: ${{ steps.coverage-report.outputs.artifact-id }}
     ## Environment variables unique to this job.
 
     strategy:
@@ -196,7 +198,7 @@ jobs:
       - name: Install covr
         if: github.ref == 'refs/heads/master' && env.run_covr == 'true' && runner.os == 'Linux'
         run: |
-          remotes::install_cran("covr")
+          remotes::install_cran(c("covr", "xml2"))
         shell: Rscript {0}
 
       - name: Install pkgdown
@@ -252,8 +254,18 @@ jobs:
       - name: Test coverage
         if: github.ref == 'refs/heads/master' && env.run_covr == 'true' && runner.os == 'Linux'
         run: |
-          covr::codecov(coverage = covr::package_coverage(type = "all"))
+          coverage <- covr::package_coverage(type = "all")
+          covr::cobertura(coverage, file = "coverage.xml")
         shell: Rscript {0}
+
+      - name: Save coverage report
+        id: coverage-report
+        if: github.ref == 'refs/heads/master' && env.run_covr == 'true' && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: r-coverage
+          path: coverage.xml
+          if-no-files-found: error
 
       - name: Install package
         if: github.ref == 'refs/heads/master' && env.run_pkgdown == 'true' && runner.os == 'Linux'
@@ -291,6 +303,28 @@ jobs:
           name: ${{ runner.os }}-biocversion-RELEASE_3_19-r-4.4-results
           path: check
 
+
+  upload-coverage:
+    name: Upload coverage to Codecov
+    needs: build-check
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.build-check.outputs.coverage-artifact-id != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: r-coverage
+      - uses: codecov/codecov-action@v7.1.1
+        with:
+          use_oidc: true
+          files: coverage.xml
+          disable_search: true
+          fail_ci_if_error: true
 
   ## Code adapted from
   ## https://github.com/waldronlab/cBioPortalData/blob/e0440a4445f0cc731e426363a76faa22ee5e0f9d/.github/workflows/devel_check_dock.yml#L65-L92
